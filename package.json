@@ -1,6 +1,6 @@
 {
   "name": "@hua-ri/dsh-ops",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "description": "DSH 一体化运维插件：SSH 远程运维 / Kubernetes 集群管理 / Helm Chart 管理 / ArgoCD 部署管理 / Argo Workflows 工作流管理。",
   "type": "module",
