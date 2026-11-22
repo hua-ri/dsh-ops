@@ -1,0 +1,62 @@
+{
+  "name": "@hua-ri/dsh-ops",
+  "version": "0.2.0",
+  "private": false,
+  "description": "DSH 一体化运维插件：SSH 远程运维 / Kubernetes 集群管理 / Helm Chart 管理 / ArgoCD 部署管理 / Argo Workflows 工作流管理。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "node scripts/build-ui.mjs",
+    "prepublishOnly": "node scripts/build-ui.mjs",
+    "doctor": "node scripts/doctor.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "client.js",
+    "cordis.patch.yml",
+    "scripts/doctor.mjs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hua-ri/dsh-ops.git"
+  },
+  "homepage": "https://github.com/hua-ri/dsh-ops",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.2.0-rc.2 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.3.0-0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  }
+}

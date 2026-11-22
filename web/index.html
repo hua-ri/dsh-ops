@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>dsh-ops · 运维工具</title>
+<link rel="stylesheet" href="/plugins/dsh-ops/style.css">
+<script defer src="/plugins/dsh-ops/app.js"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="mark">⌘</span>
+      <span>运维工具<small>OPS CONSOLE</small></span>
+    </div>
+    <div class="nav-caption">功能</div>
+    <nav id="nav" aria-label="运维功能"></nav>
+    <div class="sidebar-bottom">
+      <button id="theme" class="quiet">◐ <span>切换明暗</span></button>
+      <a class="quiet" href="/" target="_top">← <span>返回对话</span></a>
+      <div class="version" id="version">DSH-OPS</div>
+    </div>
+  </aside>
+  <div class="workspace">
+    <header>
+      <div class="breadcrumb">运维工具 <span>/</span> <b id="crumb">仪表盘</b></div>
+      <div class="header-right">
+        <span id="connection" class="connection">连接中</span>
+        <button class="icon-button" id="refresh" aria-label="刷新" title="刷新">↻</button>
+      </div>
+    </header>
+    <main id="main" tabindex="-1"></main>
+    <footer>本地 CLI 工具包装 · 数据不离开本机<span id="identity"></span></footer>
+  </div>
+</div>
+<div id="toast" role="status" hidden></div>
+<dialog id="confirm">
+  <form method="dialog">
+    <div class="eyebrow">确认操作</div>
+    <h2 id="confirm-title">确认</h2>
+    <p id="confirm-desc"></p>
+    <div class="actions">
+      <button value="cancel" class="button">取消</button>
+      <button value="confirm" class="button primary">确认</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="detail">
+  <div class="detail-head">
+    <h2 id="detail-title">详情</h2>
+    <button id="close-detail" class="icon-button" aria-label="关闭">×</button>
+  </div>
+  <div id="detail-body"></div>
+</dialog>
+</body>
+</html>
