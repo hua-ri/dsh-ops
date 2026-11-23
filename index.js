@@ -102,7 +102,7 @@ async function apply(ctx) {
 
   const ROUTE = '/api/dsh-ops'
 
-  ctx.webServer.register({
+  ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: ROUTE,
     handler: async (req, res) => {
@@ -1073,7 +1073,7 @@ async function apply(ctx) {
         err(res, 500, String(e?.message || e))
       }
     },
-  })
+  }), 'dsh-ops: API route')
 }
 
 export { apply, inject, name }
