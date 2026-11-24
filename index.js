@@ -14,8 +14,6 @@ import { substituteVars, extractVars } from './lib/ssh/snippet-vars.mjs'
 import { listKeys, generateKey, deleteKey } from './lib/ssh/keys.mjs'
 import { createTunnel, listTunnels, closeTunnel } from './lib/ssh/tunnels.mjs'
 import { loadContexts, findContext, addContext, removeContext, updateContext, buildKubectlArgs, parseKubeconfig, importContexts } from './lib/k8s/context.mjs'
-import * as argocdInst from './lib/argocd/instances.mjs'
-import * as argowfInst from './lib/argowf/instances.mjs'
 
 const name = 'dsh-ops'
 const inject = ['webServer']
@@ -23,8 +21,6 @@ const inject = ['webServer']
 const DEFAULT_CONFIG = {
   ssh: { enabled: true },
   k8s: { enabled: true },
-  argocd: { enabled: false },
-  argowf: { enabled: false },
 }
 
 function configPath() { return join(dataDir(), 'config.json') }
@@ -83,16 +79,6 @@ async function apply(ctx) {
       registerK8sTools(ctx, defineTool, toolsSvc, cfg.k8s)
       registeredToolCount += 12
     }
-    if (cfg.argocd?.enabled) {
-      const { registerArgocdTools } = await import('./lib/argocd/mod.mjs')
-      registerArgocdTools(ctx, defineTool, toolsSvc, cfg.argocd)
-      registeredToolCount += 9
-    }
-    if (cfg.argowf?.enabled) {
-      const { registerArgowfTools } = await import('./lib/argowf/mod.mjs')
-      registerArgowfTools(ctx, defineTool, toolsSvc, cfg.argowf)
-      registeredToolCount += 8
-    }
     if (cfg.k8s?.enabled !== false) {
       const { registerHelmTools } = await import('./lib/helm/mod.mjs')
       registerHelmTools(ctx, defineTool, toolsSvc, cfg.k8s)
@@ -114,7 +100,7 @@ async function apply(ctx) {
         // ───── General ─────
         if (method === 'GET' && path === '/status') {
           const deps = {}
-          for (const bin of ['ssh', 'kubectl', 'helm', 'argocd', 'argo']) {
+          for (const bin of ['ssh', 'kubectl', 'helm']) {
             const p = await which(bin)
             deps[bin] = { ok: !!p, path: p || null }
           }
@@ -124,8 +110,6 @@ async function apply(ctx) {
             toolCount: registeredToolCount,
             hostCount: loadHosts().length,
             contextCount: loadContexts().length,
-            argocdCount: argocdInst.loadInstances().length,
-            argowfCount: argowfInst.loadInstances().length,
           })
         }
 
@@ -904,166 +888,6 @@ async function apply(ctx) {
           if (body.name) args.push(body.name)
           const r = await exec('helm', args, { timeout: 60000 })
           return ok(res, { ok: r.code === 0, output: r.stdout || r.stderr })
-        }
-
-        // ───── Argo CD Instances ─────
-        if (method === 'GET' && path === '/argocd/instances') {
-          return ok(res, argocdInst.loadInstances())
-        }
-
-        if (method === 'POST' && path === '/argocd/instances') {
-          const body = await jsonBody(req)
-          const r = argocdInst.addInstance(body)
-          if (!r.ok) return err(res, 400, r.why)
-          return ok(res, { ok: true, instances: argocdInst.loadInstances() })
-        }
-
-        const acdInstMatch = path.match(/^\/argocd\/instances\/([^/]+)$/)
-        if (method === 'DELETE' && acdInstMatch) {
-          const r = argocdInst.removeInstance(decodeURIComponent(acdInstMatch[1]))
-          if (!r.ok) return err(res, 400, r.why)
-          return ok(res, { ok: true, instances: argocdInst.loadInstances() })
-        }
-
-        // ───── Argo CD Apps ─────
-        if (method === 'POST' && path === '/argocd/apps') {
-          const body = await jsonBody(req)
-          const inst = argocdInst.findInstance(body.instance)
-          if (!inst) return err(res, 404, `实例 ${body.instance} 不存在`)
-          const args = argocdInst.buildArgocdArgs(inst, ['app', 'list', '-o', 'json'])
-          if (body.project) args.push('-p', body.project)
-          if (body.selector) args.push('-l', body.selector)
-          const r = await exec('argocd', args, { timeout: 15000 })
-          if (r.code !== 0) return ok(res, { ok: false, error: r.stderr || `exit ${r.code}` })
-          try { return ok(res, { ok: true, apps: JSON.parse(r.stdout) }) }
-          catch { return ok(res, { ok: true, raw: trimOutput(r.stdout, 20000) }) }
-        }
-
-        if (method === 'POST' && path === '/argocd/app') {
-          const body = await jsonBody(req)
-          const inst = argocdInst.findInstance(body.instance)
-          if (!inst) return err(res, 404, `实例 ${body.instance} 不存在`)
-          const args = argocdInst.buildArgocdArgs(inst, ['app', 'get', body.app, '-o', 'json'])
-          const r = await exec('argocd', args, { timeout: 15000 })
-          if (r.code !== 0) return ok(res, { ok: false, error: r.stderr || `exit ${r.code}` })
-          try { return ok(res, { ok: true, app: JSON.parse(r.stdout) }) }
-          catch { return ok(res, { ok: true, raw: trimOutput(r.stdout, 20000) }) }
-        }
-
-        if (method === 'POST' && path === '/argocd/sync') {
-          const body = await jsonBody(req)
-          const inst = argocdInst.findInstance(body.instance)
-          if (!inst) return err(res, 404, `实例 ${body.instance} 不存在`)
-          const args = argocdInst.buildArgocdArgs(inst, ['app', 'sync', body.app])
-          if (body.dry_run !== false) args.push('--dry-run')
-          if (body.prune) args.push('--prune')
-          if (body.revision) args.push('--revision', body.revision)
-          const r = await exec('argocd', args, { timeout: 60000 })
-          return ok(res, { ok: r.code === 0, output: trimOutput(r.stdout, 20000), stderr: r.stderr })
-        }
-
-        if (method === 'POST' && path === '/argocd/diagnose') {
-          const body = await jsonBody(req)
-          const inst = argocdInst.findInstance(body.instance)
-          if (!inst) return err(res, 404, `实例 ${body.instance} 不存在`)
-          const getArgs = argocdInst.buildArgocdArgs(inst, ['app', 'get', body.app])
-          const diffArgs = argocdInst.buildArgocdArgs(inst, ['app', 'diff', body.app])
-          const [rGet, rDiff] = await Promise.all([
-            exec('argocd', getArgs, { timeout: 15000 }),
-            exec('argocd', diffArgs, { timeout: 15000 }),
-          ])
-          return ok(res, {
-            ok: true,
-            get: trimOutput(rGet.stdout, 10000),
-            diff: trimOutput(rDiff.stdout, 10000),
-            stderr: [rGet.stderr, rDiff.stderr].filter(Boolean).join('\n'),
-          })
-        }
-
-        // ───── Argo Workflows Instances ─────
-        if (method === 'GET' && path === '/argowf/instances') {
-          return ok(res, argowfInst.loadInstances())
-        }
-
-        if (method === 'POST' && path === '/argowf/instances') {
-          const body = await jsonBody(req)
-          const r = argowfInst.addInstance(body)
-          if (!r.ok) return err(res, 400, r.why)
-          return ok(res, { ok: true, instances: argowfInst.loadInstances() })
-        }
-
-        const awfInstMatch = path.match(/^\/argowf\/instances\/([^/]+)$/)
-        if (method === 'DELETE' && awfInstMatch) {
-          const r = argowfInst.removeInstance(decodeURIComponent(awfInstMatch[1]))
-          if (!r.ok) return err(res, 400, r.why)
-          return ok(res, { ok: true, instances: argowfInst.loadInstances() })
-        }
-
-        // ───── Argo Workflows ─────
-        if (method === 'POST' && path === '/argowf/list') {
-          const body = await jsonBody(req)
-          const inst = argowfInst.findInstance(body.instance)
-          if (!inst) return err(res, 404, `实例 ${body.instance} 不存在`)
-          const args = argowfInst.buildArgoArgs(inst, ['list', '-o', 'json'])
-          if (body.namespace) args.push('-n', body.namespace)
-          if (body.status) args.push('--status', body.status)
-          if (body.label_selector) args.push('-l', body.label_selector)
-          args.push('--chunk-size', String(body.limit || 50))
-          const r = await exec('argo', args, { timeout: 15000 })
-          if (r.code !== 0) return ok(res, { ok: false, error: r.stderr || `exit ${r.code}` })
-          try { return ok(res, { ok: true, workflows: JSON.parse(r.stdout) }) }
-          catch { return ok(res, { ok: true, raw: trimOutput(r.stdout, 20000) }) }
-        }
-
-        if (method === 'POST' && path === '/argowf/get') {
-          const body = await jsonBody(req)
-          const inst = argowfInst.findInstance(body.instance)
-          if (!inst) return err(res, 404, `实例 ${body.instance} 不存在`)
-          const args = argowfInst.buildArgoArgs(inst, ['get', body.name, '-o', 'json'])
-          if (body.namespace) args.push('-n', body.namespace)
-          const r = await exec('argo', args, { timeout: 15000 })
-          if (r.code !== 0) return ok(res, { ok: false, error: r.stderr || `exit ${r.code}` })
-          try { return ok(res, { ok: true, workflow: JSON.parse(r.stdout) }) }
-          catch { return ok(res, { ok: true, raw: trimOutput(r.stdout, 20000) }) }
-        }
-
-        if (method === 'POST' && path === '/argowf/submit') {
-          const body = await jsonBody(req)
-          const inst = argowfInst.findInstance(body.instance)
-          if (!inst) return err(res, 404, `实例 ${body.instance} 不存在`)
-          const args = argowfInst.buildArgoArgs(inst, ['submit', '--from', `wftmpl/${body.template}`])
-          if (body.namespace) args.push('-n', body.namespace)
-          if (body.dry_run) args.push('--dry-run')
-          if (body.parameters && typeof body.parameters === 'object') {
-            for (const [k, v] of Object.entries(body.parameters)) {
-              args.push('-p', `${k}=${v}`)
-            }
-          }
-          args.push('-o', 'json')
-          const r = await exec('argo', args, { timeout: 30000 })
-          if (r.code !== 0) return ok(res, { ok: false, error: r.stderr || `exit ${r.code}` })
-          try { return ok(res, { ok: true, workflow: JSON.parse(r.stdout) }) }
-          catch { return ok(res, { ok: true, raw: trimOutput(r.stdout, 20000) }) }
-        }
-
-        if (method === 'POST' && path === '/argowf/diagnose') {
-          const body = await jsonBody(req)
-          const inst = argowfInst.findInstance(body.instance)
-          if (!inst) return err(res, 404, `实例 ${body.instance} 不存在`)
-          const getArgs = argowfInst.buildArgoArgs(inst, ['get', body.name])
-          if (body.namespace) getArgs.push('-n', body.namespace)
-          const logArgs = argowfInst.buildArgoArgs(inst, ['logs', body.name, '--tail', '100'])
-          if (body.namespace) logArgs.push('-n', body.namespace)
-          const [rGet, rLog] = await Promise.all([
-            exec('argo', getArgs, { timeout: 15000 }),
-            exec('argo', logArgs, { timeout: 15000 }),
-          ])
-          return ok(res, {
-            ok: true,
-            get: trimOutput(rGet.stdout, 10000),
-            logs: trimOutput(rLog.stdout, 10000),
-            stderr: [rGet.stderr, rLog.stderr].filter(Boolean).join('\n'),
-          })
         }
 
         // ───── 404 ─────

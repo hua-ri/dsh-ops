@@ -6,8 +6,6 @@ const deps = [
   { bin: 'ssh',      module: 'ssh',    install: 'macOS 自带',              required: true },
   { bin: 'kubectl',  module: 'k8s',    install: 'brew install kubectl',    required: true },
   { bin: 'helm',     module: 'helm',   install: 'brew install helm',       required: false },
-  { bin: 'argocd',   module: 'argocd', install: 'brew install argocd',     required: false },
-  { bin: 'argo',     module: 'argowf', install: 'brew install argo',       required: false },
 ]
 
 async function main() {
@@ -25,7 +23,7 @@ async function main() {
 
   console.log('')
   if (allOk) {
-    console.log('基础依赖就绪。argocd/argo 按需安装即可。')
+    console.log('基础依赖就绪。helm 按需安装即可。')
   } else {
     console.log('⚠ 有必需依赖缺失，请先安装。')
     process.exitCode = 1

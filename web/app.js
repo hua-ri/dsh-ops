@@ -10,8 +10,6 @@
     ['dashboard', '◈', '仪表盘'],
     ['hosts',     '⌘', '主机'],
     ['k8s',       '⎈', 'Kubernetes'],
-    ['argocd',    '⟳', 'Argo CD'],
-    ['argowf',    '▶', 'Workflows'],
     ['settings',  '⚙', '设置'],
   ];
 
@@ -88,8 +86,6 @@
   const MODULES = [
     { key: 'ssh', label: 'SSH', desc: '远程主机管理与命令执行', bin: 'ssh' },
     { key: 'k8s', label: 'Kubernetes', desc: 'kubectl 集群管理', bin: 'kubectl' },
-    { key: 'argocd', label: 'Argo CD', desc: 'GitOps 持续部署', bin: 'argocd' },
-    { key: 'argowf', label: 'Argo Workflows', desc: '工作流引擎管理', bin: 'argo' },
   ];
 
   // ============================================================
@@ -133,8 +129,6 @@
             <div class="quick-actions">
               <button class="button quick-action" data-page="hosts">主机管理 <span>↗</span></button>
               <button class="button quick-action" data-page="k8s">Kubernetes <span>↗</span></button>
-              <button class="button quick-action" data-page="argocd">Argo CD <span>↗</span></button>
-              <button class="button quick-action" data-page="argowf">Workflows <span>↗</span></button>
               <button class="button quick-action" data-page="settings">设置 <span>↗</span></button>
             </div>
           </div></section>
@@ -1247,6 +1241,12 @@
       document.querySelectorAll('[data-k8s-tab]').forEach(b => b.onclick = () => { k8sTab = b.dataset.k8sTab; renderK8s(); });
 
       if (k8sTab === 'contexts') renderContexts();
+      else if (!contexts.length) {
+        $('k8s-content').innerHTML = `<section class="panel" style="margin-top:16px"><div class="panel-body" style="text-align:center;padding:48px 24px">
+          ${empty('尚未添加集群。请先在「集群」标签页中添加集群上下文。')}
+          <button class="button primary" style="margin-top:16px" onclick="document.querySelector('[data-k8s-tab=contexts]').click()">前往添加集群</button>
+        </div></section>`;
+      }
       else if (k8sTab === 'overview') renderOverview();
       else if (k8sTab === 'resources') renderResources();
       else if (k8sTab === 'helm') renderHelm();
@@ -2186,7 +2186,6 @@ data:
       else if (helmSubTab === 'search') renderHelmSearch();
     }
 
-    // ── Helm Releases Sub-tab ──
     function renderHelmReleases() {
       const wrap = $('helm-sub-content');
       wrap.innerHTML =
@@ -2826,236 +2825,6 @@ data:
     if (contexts.length && !selectedCtx) selectedCtx = contexts[0].name;
     renderK8s();
   }
-
-  // ============================================================
-  // ARGO CD PAGE
-  // ============================================================
-  async function argocdPage(token) {
-    let aTab = 'instances';
-    let instances = [];
-
-    async function loadInstances() {
-      try { instances = await fetchJSON(API + '/argocd/instances'); } catch { instances = []; }
-    }
-
-    function renderArgocd() {
-      if (token !== generation) return;
-      $('main').innerHTML = title('Argo CD', 'GITOPS CONTINUOUS DEPLOYMENT', '应用同步状态管理') +
-        tabs([['instances', '实例'], ['apps', '应用']], aTab, 'data-acd-tab') +
-        '<div id="acd-content"></div>';
-
-      document.querySelectorAll('[data-acd-tab]').forEach(b => b.onclick = () => { aTab = b.dataset.acdTab; renderArgocd(); });
-
-      if (aTab === 'instances') renderAcdInstances();
-      else renderAcdApps();
-    }
-
-    function renderAcdInstances() {
-      const c = $('acd-content');
-      c.innerHTML =
-        `<div class="toolbar"><button id="add-acd-btn" class="button primary">＋ 添加实例</button></div>` +
-        `<section id="add-acd-form" class="panel" hidden><div class="panel-head"><h3>添加 Argo CD 实例</h3></div>
-          <form id="acd-form" class="panel-body form-grid">
-            <div class="form-inline">
-              <label>名称 *<input name="name" required placeholder="production"></label>
-              <label>服务器地址 *<input name="server" required placeholder="https://argocd.example.com"></label>
-            </div>
-            <div class="actions"><button type="button" id="cancel-acd" class="button">取消</button><button type="submit" class="button primary">保存</button></div>
-          </form></section>` +
-        `<div id="acd-list">${loading()}</div>`;
-
-      $('add-acd-btn').onclick = () => { $('add-acd-form').hidden = !$('add-acd-form').hidden; };
-      $('cancel-acd').onclick = () => { $('add-acd-form').hidden = true; };
-      $('acd-form').onsubmit = async (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        try {
-          await postJSON(API + '/argocd/instances', { name: fd.get('name'), server: fd.get('server') });
-          toast('实例已添加'); $('add-acd-form').hidden = true; e.target.reset();
-          await loadInstances(); renderAcdList();
-        } catch (err) { toast(err.message); }
-      };
-
-      loadInstances().then(renderAcdList);
-    }
-
-    function renderAcdList() {
-      const el = $('acd-list');
-      if (!el) return;
-      if (!instances.length) { el.innerHTML = empty('没有 Argo CD 实例。'); return; }
-      el.innerHTML = instances.map(inst => `<div class="row-item">
-        <span class="row-dot" style="border-color:var(--accent)"></span>
-        <div class="row-content">
-          <div class="row-title"><strong>${esc(inst.name)}</strong></div>
-          <div class="row-meta"><span>${esc(inst.server)}</span></div>
-        </div>
-        <button class="button" data-del-acd="${esc(inst.name)}">删除</button>
-      </div>`).join('');
-
-      el.querySelectorAll('[data-del-acd]').forEach(b => b.onclick = async () => {
-        if (!confirm('删除实例 ' + b.dataset.delAcd + '？')) return;
-        try { await deleteJSON(API + '/argocd/instances/' + encodeURIComponent(b.dataset.delAcd)); toast('已删除'); await loadInstances(); renderAcdList(); } catch (err) { toast(err.message); }
-      });
-    }
-
-    function renderAcdApps() {
-      const c = $('acd-content');
-      c.innerHTML =
-        `<section class="panel"><div class="panel-body form-grid">
-          <div class="form-inline">
-            <label>实例<select id="acd-inst">${instances.map(i => `<option value="${esc(i.name)}">${esc(i.name)}</option>`).join('')}</select></label>
-          </div>
-          <div class="actions"><button id="acd-load-apps" class="button primary">加载应用</button></div>
-        </div></section>
-        <div id="acd-apps-result"></div>`;
-
-      $('acd-load-apps').onclick = async () => {
-        const inst = $('acd-inst').value;
-        if (!inst) { toast('请选择实例'); return; }
-        const btn = $('acd-load-apps'); btn.disabled = true;
-        $('acd-apps-result').innerHTML = loading();
-        try {
-          const r = await postJSON(API + '/argocd/apps', { instance: inst });
-          const apps = r.apps || [];
-          if (Array.isArray(apps) && apps.length) {
-            $('acd-apps-result').innerHTML = `<section class="panel"><div class="panel-head"><h3>应用列表</h3><span class="badge badge-off">${apps.length} 个应用</span></div>
-              ${apps.map(a => {
-                const name = a.metadata?.name || a.name || '?';
-                const sync = a.status?.sync?.status || 'Unknown';
-                const health = a.status?.health?.status || 'Unknown';
-                return `<div class="row-item">
-                  <div class="row-content">
-                    <div class="row-title"><strong>${esc(name)}</strong></div>
-                    <div class="row-meta">${statusBadge(sync)} ${statusBadge(health)}</div>
-                  </div></div>`;
-              }).join('')}
-            </section>`;
-          } else {
-            $('acd-apps-result').innerHTML = `<section class="panel"><div class="panel-head"><h3>应用列表</h3></div>
-              <div class="panel-body"><pre>${esc(r.raw || json(r))}</pre></div></section>`;
-          }
-        } catch (err) { $('acd-apps-result').innerHTML = errorHTML(err); }
-        btn.disabled = false;
-      };
-    }
-
-    await loadInstances();
-    renderArgocd();
-  }
-
-  // ============================================================
-  // ARGO WORKFLOWS PAGE
-  // ============================================================
-  async function argowfPage(token) {
-    let wfTab = 'instances';
-    let instances = [];
-
-    async function loadInstances() {
-      try { instances = await fetchJSON(API + '/argowf/instances'); } catch { instances = []; }
-    }
-
-    function renderArgowf() {
-      if (token !== generation) return;
-      $('main').innerHTML = title('Workflows', 'ARGO WORKFLOWS', '工作流引擎管理') +
-        tabs([['instances', '实例'], ['workflows', '工作流']], wfTab, 'data-wf-tab') +
-        '<div id="wf-content"></div>';
-
-      document.querySelectorAll('[data-wf-tab]').forEach(b => b.onclick = () => { wfTab = b.dataset.wfTab; renderArgowf(); });
-
-      if (wfTab === 'instances') renderWfInstances();
-      else renderWfList();
-    }
-
-    function renderWfInstances() {
-      const c = $('wf-content');
-      c.innerHTML =
-        `<div class="toolbar"><button id="add-wf-btn" class="button primary">＋ 添加实例</button></div>` +
-        `<section id="add-wf-form" class="panel" hidden><div class="panel-head"><h3>添加 Argo Workflows 实例</h3></div>
-          <form id="wf-form" class="panel-body form-grid">
-            <div class="form-inline">
-              <label>名称 *<input name="name" required placeholder="production"></label>
-              <label>服务器地址 *<input name="server" required placeholder="https://argo.example.com"></label>
-            </div>
-            <label>默认命名空间<input name="namespace" value="argo"></label>
-            <div class="actions"><button type="button" id="cancel-wf" class="button">取消</button><button type="submit" class="button primary">保存</button></div>
-          </form></section>` +
-        `<div id="wf-list">${loading()}</div>`;
-
-      $('add-wf-btn').onclick = () => { $('add-wf-form').hidden = !$('add-wf-form').hidden; };
-      $('cancel-wf').onclick = () => { $('add-wf-form').hidden = true; };
-      $('wf-form').onsubmit = async (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        try {
-          await postJSON(API + '/argowf/instances', { name: fd.get('name'), server: fd.get('server'), namespace: fd.get('namespace') || 'argo' });
-          toast('实例已添加'); $('add-wf-form').hidden = true; e.target.reset();
-          await loadInstances(); renderWfInstanceList();
-        } catch (err) { toast(err.message); }
-      };
-
-      loadInstances().then(renderWfInstanceList);
-    }
-
-    function renderWfInstanceList() {
-      const el = $('wf-list');
-      if (!el) return;
-      if (!instances.length) { el.innerHTML = empty('没有 Argo Workflows 实例。'); return; }
-      el.innerHTML = instances.map(inst => `<div class="row-item">
-        <span class="row-dot" style="border-color:var(--accent)"></span>
-        <div class="row-content">
-          <div class="row-title"><strong>${esc(inst.name)}</strong></div>
-          <div class="row-meta"><span>${esc(inst.server)}</span><span>ns: ${esc(inst.namespace || 'argo')}</span></div>
-        </div>
-        <button class="button" data-del-wf="${esc(inst.name)}">删除</button>
-      </div>`).join('');
-
-      el.querySelectorAll('[data-del-wf]').forEach(b => b.onclick = async () => {
-        if (!confirm('删除实例 ' + b.dataset.delWf + '？')) return;
-        try { await deleteJSON(API + '/argowf/instances/' + encodeURIComponent(b.dataset.delWf)); toast('已删除'); await loadInstances(); renderWfInstanceList(); } catch (err) { toast(err.message); }
-      });
-    }
-
-    function renderWfList() {
-      const c = $('wf-content');
-      const phases = ['', 'Running', 'Succeeded', 'Failed', 'Error'];
-      c.innerHTML =
-        `<section class="panel"><div class="panel-body form-grid">
-          <div class="form-inline">
-            <label>实例<select id="wf-inst">${instances.map(i => `<option value="${esc(i.name)}">${esc(i.name)}</option>`).join('')}</select></label>
-            <label>命名空间<input id="wf-ns" placeholder="默认"></label>
-          </div>
-          <div class="command-tabs">${phases.map(p => `<button class="chip ${!p ? 'active' : ''}" data-wf-phase="${p}">${p || '全部'}</button>`).join('')}</div>
-          <div class="actions"><button id="wf-load" class="button primary">加载工作流</button></div>
-        </div></section>
-        <div id="wf-result"></div>`;
-
-      let selPhase = '';
-      document.querySelectorAll('[data-wf-phase]').forEach(b => b.onclick = () => {
-        selPhase = b.dataset.wfPhase;
-        document.querySelectorAll('[data-wf-phase]').forEach(x => x.classList.toggle('active', x === b));
-      });
-
-      $('wf-load').onclick = async () => {
-        const inst = $('wf-inst').value;
-        if (!inst) { toast('请选择实例'); return; }
-        const btn = $('wf-load'); btn.disabled = true;
-        $('wf-result').innerHTML = loading();
-        try {
-          const body = { instance: inst };
-          if ($('wf-ns').value) body.namespace = $('wf-ns').value;
-          if (selPhase) body.status = selPhase;
-          const r = await postJSON(API + '/argowf/list', body);
-          $('wf-result').innerHTML = `<section class="panel"><div class="panel-head"><h3>工作流</h3></div>
-            <div class="panel-body"><pre>${esc(r.text || r.output || json(r))}</pre></div></section>`;
-        } catch (err) { $('wf-result').innerHTML = errorHTML(err); }
-        btn.disabled = false;
-      };
-    }
-
-    await loadInstances();
-    renderArgowf();
-  }
-
   // ============================================================
   // SETTINGS PAGE
   // ============================================================
@@ -3133,8 +2902,6 @@ data:
       else if (page === 'ssh') { page = 'hosts'; await hostsPage(token); }
       else if (page === 'files') { page = 'hosts'; await hostsPage(token); }
       else if (page === 'k8s') await k8sPage(token);
-      else if (page === 'argocd') await argocdPage(token);
-      else if (page === 'argowf') await argowfPage(token);
       else if (page === 'settings') await settingsPage(token);
     } catch (e) {
       if (token === generation) $('main').innerHTML = title('错误', 'ERROR', '加载页面时出现问题') + errorHTML(e);

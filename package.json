@@ -1,8 +1,8 @@
 {
   "name": "@hua-ri/dsh-ops",
-  "version": "0.2.7",
+  "version": "0.3.0",
   "private": false,
-  "description": "DSH 一体化运维插件：SSH 远程运维 / Kubernetes 集群管理 / Helm Chart 管理 / ArgoCD 部署管理 / Argo Workflows 工作流管理。",
+  "description": "DSH 一体化运维插件：SSH 远程运维 / Kubernetes 集群管理 / Helm Chart 管理。",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -10,9 +10,7 @@
     "ops",
     "ssh",
     "kubernetes",
-    "helm",
-    "argocd",
-    "argo-workflows"
+    "helm"
   ],
   "type": "module",
   "main": "index.js",
