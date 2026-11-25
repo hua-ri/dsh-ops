@@ -92,6 +92,14 @@ async function apply(ctx) {
     kind: 'prefix',
     path: ROUTE,
     handler: async (req, res) => {
+      // DSH 准入：Host/Origin 校验 + 浏览器会话认证。宿主未提供 connection 服务时跳过。
+      const rejection = ctx.get?.('connection')?.requestRejection?.(req)
+      if (rejection !== undefined) {
+        res.statusCode = rejection
+        res.end()
+        return
+      }
+
       const url = new URL(req.url, 'http://localhost')
       const path = url.pathname.slice(ROUTE.length)
       const method = req.method

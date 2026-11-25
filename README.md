@@ -8,7 +8,7 @@ DSH 一体化运维插件 — 在 DeepSeek Harness 中管理 SSH 主机、Kubern
 - **Kubernetes 集群管理** — 多集群上下文、资源浏览（get/describe/logs/exec）、apply/delete/scale/rollout
 - **Helm Chart 管理** — Release 管理、仓库 CRUD、Chart 搜索与详情、安装/升级/卸载
 
-共 32 个 DSH Tools，AI agent 可直接调用所有运维能力。
+共 39 个 DSH Tools，AI agent 可直接调用所有运维能力。
 
 ## 安装
 
